@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>我的藝廊</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #f3f3f3;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #game, #summary {
+      display: none;
+    }
+    .log {
+      white-space: pre-line;
+      background: #f0f0f0;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 6px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    input, select, button {
+      margin-top: 10px;
+      padding: 8px;
+      width: 100%;
+      font-size: 1em;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div id="start">
+    <h2>歡迎來到《我的藝廊》</h2>
+    <p>請輸入你的畫廊名稱：</p>
+    <input id="galleryName" placeholder="例如：東海實驗空間" />
+    <button onclick="startGame()">開始遊戲</button>
+  </div>
+
+  <div id="game">
+    <h2 id="title"></h2>
+    <p>月份：<span id="month"></span> / 12</p>
+    <p>資金：<span id="money"></span>｜聲望：<span id="reputation"></span></p>
+
+    <label>選擇畫廊類型：
+      <select id="galleryType">
+        <option value="commercial">商業畫廊</option>
+        <option value="normal">普通畫廊</option>
+        <option value="alternative">替代空間</option>
+      </select>
+    </label>
+
+    <label>選擇藝術家合作：
+      <select id="artistType">
+        <option value="new">新進藝術家</option>
+        <option value="mid">中等藝術家</option>
+        <option value="famous">知名藝術家</option>
+      </select>
+    </label>
+
+    <button onclick="nextMonth()">進入下一個月</button>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div id="summary">
+    <h2>《我的藝廊》遊戲總結</h2>
+    <div id="summaryContent"></div>
+  </div>
+</div>
+
+<script>
+let state = {
+  gallery: '',
+  month: 1,
+  money: 500,
+  reputation: 50,
+  log: [],
+  history: []
+};
+
+function startGame() {
+  const name = document.getElementById('galleryName').value.trim();
+  if (!name) return alert('請輸入畫廊名稱');
+  state.gallery = name;
+  const saved = localStorage.getItem('gallery_' + name);
+  if (saved) {
+    state = JSON.parse(saved);
+  }
+  document.getElementById('start').style.display = 'none';
+  document.getElementById('game').style.display = 'block';
+  document.getElementById('title').innerText = `畫廊名稱：${state.gallery}`;
+  updateUI();
+}
+
+function updateUI() {
+  document.getElementById('month').innerText = state.month;
+  document.getElementById('money').innerText = state.money;
+  document.getElementById('reputation').innerText = state.reputation;
+  document.getElementById('log').innerText = state.log.join('\n');
+}
+
+function nextMonth() {
+  const galleryCost = { commercial: 20, normal: 10, alternative: 5 };
+  const rentCost = { commercial: 80, normal: 50, alternative: 20 };
+  const sellChance = { commercial: 15, normal: 10, alternative: 5 };
+  const artistCost = { new: 5, mid: 20, famous: 50 };
+  const artistChance = { new: 10, mid: 20, famous: 30 };
+  const repMod = Math.floor((state.reputation - 50) / 10) * 3;
+  const priceRange = { small: [20, 60], mid: [60, 120], large: [120, 240] };
+
+  const gType = document.getElementById('galleryType').value;
+  const aType = document.getElementById('artistType').value;
+
+  const cost = rentCost[gType] + galleryCost[gType] + artistCost[aType];
+  state.money -= cost;
+
+  let chance = sellChance[gType] + artistChance[aType] + repMod;
+  const dice = Math.floor(Math.random() * 100) + 1;
+  let sold = dice <= chance;
+
+  let income = 0;
+  if (sold) {
+    const price = Math.floor(Math.random() * (priceRange.mid[1] - priceRange.mid[0])) + priceRange.mid[0];
+    income = price;
+    state.money += income;
+    state.reputation += 2;
+  } else {
+    state.reputation -= 1;
+  }
+
+  const logMsg = `第${state.month}月：合作${aType}藝術家，選擇${gType}，花費${cost}金幣。\n` +
+                 (sold ? `成功售出作品，收入${income}金幣，聲望+2。` : `未售出，聲望-1。`);
+  state.log.push(logMsg);
+  state.history.push({ month: state.month, cost, income, sold, rep: state.reputation });
+
+  state.month++;
+  if (state.month > 12) {
+    endGame();
+  } else {
+    localStorage.setItem('gallery_' + state.gallery, JSON.stringify(state));
+    updateUI();
+  }
+}
+
+function endGame() {
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('summary').style.display = 'block';
+  let summary = `<p>畫廊：${state.gallery}</p><ul>`;
+  for (let h of state.history) {
+    summary += `<li>第${h.month}月｜花費 ${h.cost}｜收入 ${h.income}｜${h.sold ? '售出成功' : '售出失敗'}｜聲望 ${h.rep}</li>`;
+  }
+  summary += '</ul>';
+  document.getElementById('summaryContent').innerHTML = summary;
+  localStorage.removeItem('gallery_' + state.gallery);
+}
+</script>
+</body>
+</html>
